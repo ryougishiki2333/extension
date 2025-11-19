@@ -42,14 +42,12 @@
   };
 
   const currentDomain = window.location.hostname.replace('www.', '');
-  console.log('Questlog initialized on domain:', currentDomain);
 
   init();
 
   async function init() {
     await loadState();
     if (!shouldRender()) return;
-    if (Date.now() < state.hiddenUntil) return;
     createUI();
   }
 
@@ -103,18 +101,29 @@
     window.qlContainer = container;
   }
 
+  function isSleeping() {
+    return Date.now() < state.hiddenUntil;
+  }
+
   function render(container) {
+    const sleeping = isSleeping();
     container.innerHTML = '';
-    container.className = `quest-container ${state.isMinimized ? 'minimized' : ''}`;
+    const classes = ['quest-container'];
+    if (sleeping) {
+      classes.push('sleeping');
+    } else if (state.isMinimized) {
+      classes.push('minimized');
+    }
+    container.className = classes.join(' ');
     window.qlContainer = container;
 
-    if (state.isMinimized) {
+    if (!sleeping && state.isMinimized) {
       renderMinimized(container);
-    } else {
-      container.style.top = '';
-      container.style.left = '';
-      renderExpanded(container);
+      return;
     }
+    container.style.top = '';
+    container.style.left = '';
+    renderExpanded(container, sleeping);
   }
 
   function renderMinimized(container) {
@@ -198,7 +207,7 @@
     container.appendChild(btn);
   }
 
-  function renderExpanded(container) {
+  function renderExpanded(container, sleeping = false) {
     const header = document.createElement('div');
     header.className = 'quest-header';
     header.innerHTML = `
@@ -218,46 +227,65 @@
     const list = document.createElement('div');
     list.className = 'quest-list';
 
-    state.quests.forEach((quest, index) => {
-      const item = document.createElement('div');
-      item.className = 'quest-item';
-      item.innerHTML = `
-        <div class="quest-icon" title="Quest sigil">
-          <svg viewBox="0 0 24 24" width="26" height="26">${QUEST_ICONS[quest.icon]}</svg>
+    if (sleeping) {
+      const message = document.createElement('div');
+      message.className = 'sleeping-notice';
+      message.innerHTML = `
+        <div class="sleeping-symbol">
+          <svg viewBox="0 0 24 24" aria-hidden="true">${UI_ICONS.clock}</svg>
         </div>
-        <input type="text" class="quest-input" value="${quest.text}" placeholder="Describe your quest...">
-        <button class="quest-complete" title="Complete quest" type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true">${UI_ICONS.check}</svg>
-          <span class="sr-only">Complete</span>
+        <div class="sleeping-copy">
+          <p>Questlog 正在休息</p>
+          <small>${getSleepText()}</small>
+        </div>
+        <button class="btn-wake-now" id="btn-wake-now" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">${UI_ICONS.add}</svg>
+          <span>立即唤醒</span>
         </button>
       `;
+      list.appendChild(message);
+    } else {
+      state.quests.forEach((quest, index) => {
+        const item = document.createElement('div');
+        item.className = 'quest-item';
+        item.innerHTML = `
+          <div class="quest-icon" title="Quest sigil">
+            <svg viewBox="0 0 24 24" width="26" height="26">${QUEST_ICONS[quest.icon]}</svg>
+          </div>
+          <input type="text" class="quest-input" value="${quest.text}" placeholder="Describe your quest...">
+          <button class="quest-complete" title="完成该任务" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">${UI_ICONS.check}</svg>
+            <span>完成</span>
+          </button>
+        `;
 
-      const completeButton = item.querySelector('.quest-complete');
-      completeButton.addEventListener('click', () => completeQuest(index, container));
+        const completeButton = item.querySelector('.quest-complete');
+        completeButton.addEventListener('click', () => completeQuest(index, container));
 
-      const input = item.querySelector('.quest-input');
-      input.addEventListener('input', (e) => {
-        state.quests[index].text = e.target.value;
-        saveState();
+        const input = item.querySelector('.quest-input');
+        input.addEventListener('input', (e) => {
+          state.quests[index].text = e.target.value;
+          saveState();
+        });
+
+        input.addEventListener('focus', () => item.classList.add('focus'));
+        input.addEventListener('blur', () => item.classList.remove('focus'));
+
+        list.appendChild(item);
       });
 
-      input.addEventListener('focus', () => item.classList.add('focus'));
-      input.addEventListener('blur', () => item.classList.remove('focus'));
-
-      list.appendChild(item);
-    });
-
-    if (state.quests.length < CONFIG.maxQuests) {
-      const addBtn = document.createElement('button');
-      addBtn.className = 'btn-add';
-      addBtn.type = 'button';
-      addBtn.title = 'Summon new quest';
-      addBtn.innerHTML = `
-        <svg viewBox="0 0 24 24" aria-hidden="true">${UI_ICONS.add}</svg>
-        <span class="sr-only">Add quest</span>
-      `;
-      addBtn.addEventListener('click', () => showIconSelector(container));
-      list.appendChild(addBtn);
+      if (state.quests.length < CONFIG.maxQuests) {
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn-add';
+        addBtn.type = 'button';
+        addBtn.title = 'Summon new quest';
+        addBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" aria-hidden="true">${UI_ICONS.add}</svg>
+          <span class="sr-only">Add quest</span>
+        `;
+        addBtn.addEventListener('click', () => showIconSelector(container));
+        list.appendChild(addBtn);
+      }
     }
 
     const menu = document.createElement('div');
@@ -291,39 +319,58 @@
           <span class="sr-only">Save domains</span>
         </button>
       </div>
+      ${
+        sleeping
+          ? `
+      <div class="menu-section">
+        <h3>Visibility</h3>
+        <label class="toggle-row">
+          <input type="checkbox" id="wake-checkbox">
+          <span>立即唤醒面板</span>
+        </label>
+      </div>`
+          : ''
+      }
     `;
 
-    const minimizeOverlay = document.createElement('div');
-    minimizeOverlay.className = 'minimize-overlay hidden';
-    const minimizeOptions = [
-      { time: 0, label: 'Now', icon: UI_ICONS.minimize, title: 'Just minimize' },
-      { time: 15, label: '15m', icon: UI_ICONS.clock, title: 'Return in 15 minutes' },
-      { time: 60, label: '1h', icon: UI_ICONS.clock, title: 'Return in 1 hour' },
-      { time: 120, label: '2h', icon: UI_ICONS.clock, title: 'Return in 2 hours' },
-      { time: -1, label: 'Hold', icon: UI_ICONS.snooze, title: 'Do not auto pop' }
-    ];
+    let minimizeOverlay = null;
+    if (!sleeping) {
+      minimizeOverlay = document.createElement('div');
+      minimizeOverlay.className = 'minimize-overlay hidden';
+      const minimizeOptions = [
+        { time: 0, label: 'Now', icon: UI_ICONS.minimize, title: 'Just minimize' },
+        { time: 15, label: '15m', icon: UI_ICONS.clock, title: 'Return in 15 minutes' },
+        { time: 60, label: '1h', icon: UI_ICONS.clock, title: 'Return in 1 hour' },
+        { time: 120, label: '2h', icon: UI_ICONS.clock, title: 'Return in 2 hours' },
+        { time: -1, label: 'Hold', icon: UI_ICONS.snooze, title: 'Do not auto pop' }
+      ];
 
-    minimizeOverlay.innerHTML = `
-      <div class="minimize-options">
-        <h3>Retreat for...</h3>
-        <div class="option-grid">
-          ${minimizeOptions
-            .map(
-              (opt) => `
-                <button class="icon-chip" data-time="${opt.time}" data-label="${opt.label}" title="${opt.title}" type="button">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">${opt.icon}</svg>
-                  <span class="sr-only">${opt.title}</span>
-                </button>
-              `
-            )
-            .join('')}
+      minimizeOverlay.innerHTML = `
+        <div class="minimize-options">
+          <h3>Retreat for...</h3>
+          <div class="option-grid">
+            ${minimizeOptions
+              .map(
+                (opt) => `
+                  <button class="icon-chip" data-time="${opt.time}" data-label="${opt.label}" title="${opt.title}" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">${opt.icon}</svg>
+                    <span class="sr-only">${opt.title}</span>
+                  </button>
+                `
+              )
+              .join('')}
+          </div>
         </div>
-      </div>
-    `;
+      `;
 
-    header.querySelector('#btn-minimize').addEventListener('click', () => {
-      minimizeOverlay.classList.remove('hidden');
-    });
+      header.querySelector('#btn-minimize').addEventListener('click', () => {
+        minimizeOverlay.classList.remove('hidden');
+      });
+    } else {
+      const minimizeBtn = header.querySelector('#btn-minimize');
+      minimizeBtn.disabled = true;
+      minimizeBtn.classList.add('disabled');
+    }
 
     header.querySelector('#btn-menu').addEventListener('click', () => {
       menu.classList.toggle('hidden');
@@ -339,45 +386,63 @@
       textarea.blur();
     });
 
-    minimizeOverlay.querySelectorAll('button').forEach((button) => {
-      button.addEventListener('click', (e) => {
-        const time = parseInt(e.currentTarget.dataset.time, 10);
-        minimizeOverlay.classList.add('hidden');
-        if (time === 0) {
-          state.isMinimized = true;
-          state.hiddenUntil = 0;
+    if (minimizeOverlay) {
+      minimizeOverlay.querySelectorAll('button').forEach((button) => {
+        button.addEventListener('click', (e) => {
+          const time = parseInt(e.currentTarget.dataset.time, 10);
+          minimizeOverlay.classList.add('hidden');
+          if (time === 0) {
+            state.isMinimized = true;
+            state.hiddenUntil = 0;
+            saveState();
+            render(container);
+            return;
+          }
+
+          if (time === -1) {
+            state.isMinimized = false;
+            state.hiddenUntil = Number.MAX_SAFE_INTEGER;
+            saveState();
+            render(container);
+            return;
+          }
+
+          state.isMinimized = false;
+          state.hiddenUntil = Date.now() + time * 60 * 1000;
           saveState();
           render(container);
-          return;
-        }
-
-        if (time === -1) {
-          state.isMinimized = false;
-          state.hiddenUntil = Number.MAX_SAFE_INTEGER;
-          saveState();
-          const host = document.getElementById('questlog-root');
-          if (host) host.remove();
-          return;
-        }
-
-        state.isMinimized = false;
-        state.hiddenUntil = Date.now() + time * 60 * 1000;
-        saveState();
-        const host = document.getElementById('questlog-root');
-        if (host) host.remove();
+        });
       });
-    });
 
-    minimizeOverlay.addEventListener('click', (e) => {
-      if (e.target === minimizeOverlay) {
-        minimizeOverlay.classList.add('hidden');
-      }
-    });
+      minimizeOverlay.addEventListener('click', (e) => {
+        if (e.target === minimizeOverlay) {
+          minimizeOverlay.classList.add('hidden');
+        }
+      });
+    }
 
     container.appendChild(header);
     container.appendChild(list);
     container.appendChild(menu);
-    container.appendChild(minimizeOverlay);
+    if (minimizeOverlay) {
+      container.appendChild(minimizeOverlay);
+    }
+
+    if (sleeping) {
+      const wakeBtn = list.querySelector('#btn-wake-now');
+      if (wakeBtn) {
+        wakeBtn.addEventListener('click', wakeBoard);
+      }
+    }
+
+    const wakeCheckbox = menu.querySelector('#wake-checkbox');
+    if (wakeCheckbox) {
+      wakeCheckbox.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          wakeBoard();
+        }
+      });
+    }
   }
 
   function showIconSelector(container) {
@@ -434,5 +499,30 @@
         render(target);
       }, 500);
     }
+  }
+
+  function wakeBoard() {
+    state.hiddenUntil = 0;
+    state.isMinimized = false;
+    saveState();
+    if (window.qlContainer) {
+      render(window.qlContainer);
+    } else {
+      init();
+    }
+  }
+
+  function getSleepText() {
+    if (state.hiddenUntil === Number.MAX_SAFE_INTEGER) {
+      return '已设为不再自动弹出，可通过菜单重新启用。';
+    }
+    const remaining = state.hiddenUntil - Date.now();
+    if (remaining <= 0) return '即将苏醒。';
+    const mins = Math.ceil(remaining / 60000);
+    if (mins >= 60) {
+      const hours = Math.ceil(mins / 60);
+      return `将在约 ${hours} 小时后回归。`;
+    }
+    return `将在约 ${mins} 分钟后回归。`;
   }
 })();

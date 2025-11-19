@@ -46,6 +46,10 @@
   min-height: 150px;
 }
 
+.quest-container.sleeping {
+  opacity: 0.9;
+}
+
 .quest-container.minimized {
   position: fixed;
   width: 64px;
@@ -124,6 +128,15 @@
   transform: translateY(-1px) scale(1.05);
   border-color: var(--accent-cyan);
   box-shadow: 0 0 12px rgba(78, 240, 255, 0.4);
+}
+
+.btn-icon.disabled,
+.btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: none;
+  transform: none;
 }
 
 .btn-icon.solid {
@@ -209,16 +222,26 @@
 
 .quest-complete {
   border: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(142, 245, 177, 0.15);
+  height: 36px;
+  border-radius: 999px;
+  padding: 0 14px;
+  background: rgba(142, 245, 177, 0.2);
   color: var(--accent-green);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s ease, background 0.2s ease;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.quest-complete svg {
+  width: 16px;
+  height: 16px;
 }
 
 .quest-complete:hover {
@@ -264,6 +287,20 @@
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.toggle-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-cyan);
 }
 
 .menu-section h3 {
@@ -402,6 +439,61 @@ textarea {
 .icon-chip:hover {
   border-color: var(--accent-cyan);
   transform: translateY(-2px);
+}
+
+.sleeping-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+}
+
+.sleeping-symbol {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(78, 240, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-cyan);
+}
+
+.sleeping-copy p {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.sleeping-copy small {
+  color: var(--text-secondary);
+}
+
+.btn-wake-now {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 122, 217, 0.4), rgba(78, 240, 255, 0.4));
+  color: var(--text-primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.btn-wake-now svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-wake-now:hover {
+  opacity: 0.9;
 }
 
 .btn-icon:focus-visible,
